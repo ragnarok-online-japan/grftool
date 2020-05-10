@@ -41,13 +41,11 @@ if test "$uninstall" = 0; then
 	scons -Q
 fi
 
-inst gtk/grftool-gtk "$BINDIR"
-inst gtk/grftool.glade "$PKGDATADIR"
 inst tools/grftool "$BINDIR"
 inst tools/spritetool "$BINDIR"
 inst tools/gxtool "$BINDIR"
-inst tools/libgrf-1.2.pc "$LIBDIR/pkgconfig"
-inst lib/static/libstatic-grf.a "$LIBDIR"
+inst tools/libgrf-2.0.pc "$LIBDIR/pkgconfig"
+inst lib/libstatic-grf.a "$LIBDIR"
 inst lib/grf.h "$INCLUDEDIR"
 inst lib/grfcrypt.h "$INCLUDEDIR"
 inst lib/grfsupport.h "$INCLUDEDIR"

@@ -2,13 +2,8 @@
 # You need scons: http://www.scons.org/
 # Type 'scons -Q' in the commandline to compile grftool.
 
-import os
 import string
-
-# Setup environment
-
-USE_GTK = 0
-WIN32 = 0
+import subprocess
 
 DEBUG = ARGUMENTS.get('DEBUG', 0);
 CC = ARGUMENTS.get('CC', None);
@@ -19,11 +14,6 @@ BINDIR = ARGUMENTS.get('BINDIR', PREFIX + '/bin')
 DATADIR = ARGUMENTS.get('DATADIR', PREFIX + '/share')
 PKGDATADIR = ARGUMENTS.get('PKGDATADIR', DATADIR + '/grftool')
 
-platform = str(ARGUMENTS.get('OS', Platform()))
-if platform == "cygwin" or platform == "windows":
-	WIN32 = 1
-
-
 env = Environment(
 	CCFLAGS=Split('-Wformat -Wformat-security -Wparentheses -Wunused-variable -Wuninitialized -Wall -W -Wundef -Wpointer-arith -Wcast-align -Wno-unused-parameter -O2 -g'), # -Wconversion -Wcast-qual
 	CPPPATH=['.'],
@@ -33,81 +23,18 @@ if CC != None:
 if CXX != None:
 	env['CXX'] = CXX
 
-if platform == "cygwin":
-	env['CCFLAGS'] += ' -mno-cygwin'
-	env['LINKFLAGS'] += ' -mno-cygwin'
+env.Decider('MD5-timestamp')
 
-env.SourceSignatures('timestamp')
+conf = env.Configure()
+env = conf.Finish()
 
-
-# Check for GTK if we're not on cygwin
-
-def CheckGtk(context, version):
-	context.Message('Checking for GTK+ >= ' + version + '... ')
-	pipes = os.popen3('pkg-config --modversion gtk+-2.0')
-	out = pipes[1].read().rstrip("\n")
-	pipes[0].close()
-	pipes[2].close()
-	if out <> '':
-		context.Result(out)
-	else:
-		context.Result('not found')
-
-	if out >= version:
-		return 1
-	else:
-		return 0
-
-def CheckGtkmm(context, version):
-	context.Message('Checking for Gtkmm >= ' + version + '... ')
-	pipes = os.popen3('pkg-config --modversion gtkmm-2.4')
-	out = pipes[1].read().rstrip("\n")
-	pipes[0].close()
-	pipes[2].close()
-	if out <> '':
-		context.Result(out)
-	else:
-		context.Result('not found')
-
-	if out >= version:
-		return 1
-	else:
-		return 0
-
-if platform != "cygwin":
-	conf = env.Configure(custom_tests = {'CheckGtk': CheckGtk, 'CheckGtkmm': CheckGtkmm})
-	USE_GTK = 1
-	if not conf.CheckGtk('2.4.0'):
-		if ARGUMENTS.get('gtk', 0):
-			print "*** Stop"
-			Exit(1)
-		else:
-			print 'GTK frontend will be disabled.'
-		USE_GTK = 0
-	if not conf.CheckGtkmm('2.4.0'):
-		if ARGUMENTS.get('gtk', 0):
-			print "*** Stop"
-			Exit(1)
-		else:
-			print 'GTK frontend will be disabled.'
-		USE_GTK = 0
-	env = conf.Finish()
-
+Export('env')
+Export('DEBUG')
+Export('BINDIR')
 
 # Run sub SConscripts
-
-Export('env WIN32 platform PREFIX BINDIR DATADIR PKGDATADIR DEBUG')
 SConscript('lib/SConscript', build_dir='lib/static', duplicate=False)
-
-# We only build the DLL if we're on Win32
-if WIN32:
-	SConscript('lib/zlib/SConscript', duplicate=False)
-	SConscript('lib/SConscript-dll', build_dir='lib/dll', duplicate=False)
 
 SConscript('tools/SConscript')
 
-if USE_GTK:
-	SConscript('gtk/SConscript')
-
-
-env.Alias('install', [BINDIR, DATADIR + '/applications', PKGDATADIR])
+#env.Alias('install', [BINDIR, DATADIR + '/applications', PKGDATADIR])

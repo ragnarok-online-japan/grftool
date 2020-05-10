@@ -1,12 +1,10 @@
 Import('*')
 
-lib = env.Copy()
+lib = env.Clone()
 
 lib['CPPDEFINES'] = []
 if DEBUG:
 	lib['CPPDEFINES'] += ['DEBUG']
-if WIN32:
-	lib['CPPDEFINES'] += ['GRF_STATIC', 'SPR_STATIC', 'WIN32']
 
 Default(lib.StaticLibrary(
 	'static-grf',
