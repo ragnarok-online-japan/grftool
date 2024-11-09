@@ -24,25 +24,23 @@
 #include "grftypes.h"
 #include "grfsupport.h"
 
-#include <stdlib.h>		/* snprintf, free */
-#include <errno.h>		/* errno */
-#include <string.h>		/* strerror, strcoll */
-#include <zlib.h>		/* gzerror */
+#include <stdlib.h> /* snprintf, free */
+#include <errno.h>  /* errno */
+#include <string.h> /* strerror, strcoll */
+#include <zlib.h>   /* gzerror */
 #include <ctype.h>
 
 GRFEXTERN_BEGIN
 
-
 /***************************
-* Endian support functions *
-***************************/
+ * Endian support functions *
+ ***************************/
 /* Pointless:
  * GRFINLINE uint8_t LittleEndian8 (uint8_t *p) { return *p; }
  */
 /* Unused:
  * GRFINLINE uint16_t LittleEndian16 (uint8_t *p) { return p[1]*256 + *p; }
  */
-
 
 /** Endian support function.
  *
@@ -57,9 +55,8 @@ GRFEXTERN_BEGIN
 uint32_t
 LittleEndian32(uint8_t *p)
 {
-	return ((p[3] * 256 + p[2]) * 256 + p[1]) * 256 + *p;
+    return (uint32_t)(p[0] | (p[1] << 8) | (p[2] << 16) | (p[3] << 24));
 }
-
 
 /** Endian support function.
  *
@@ -71,15 +68,14 @@ LittleEndian32(uint8_t *p)
 uint32_t
 ToLittleEndian32(uint32_t hi)
 {
-	uint32_t lei;
-	uint8_t *p = (uint8_t *) & lei;
-	p[0] = hi & 0xFF;
-	p[1] = (hi & 0xFF00) >> 8U;
-	p[2] = (hi & 0xFF0000) >> 16U;
-	p[3] = (hi & 0xFF000000) >> 24U;
-	return lei;
+    uint32_t lei;
+    uint8_t *p = (uint8_t *)&lei;
+    p[0] = hi & 0xFF;
+    p[1] = (hi & 0xFF00) >> 8U;
+    p[2] = (hi & 0xFF0000) >> 16U;
+    p[3] = (hi & 0xFF000000) >> 24U;
+    return lei;
 }
-
 
 /*************************
  * GRF Support Functions *
@@ -101,15 +97,14 @@ ToLittleEndian32(uint32_t hi)
 GRFEXPORT char *
 GRF_normalize_path(char *out, const char *in)
 {
-	char *orig;
+    char *orig;
 
-	for (orig = out; *in != 0; out++, in++)
-		*out = (*in == '\\') ? '/' : *in;
-	out[0] = 0;
+    for (orig = out; *in != 0; out++, in++)
+        *out = (*in == '\\') ? '/' : *in;
+    out[0] = 0;
 
-	return orig;
+    return orig;
 }
-
 
 /** Function to hash a filename.
  *
@@ -122,17 +117,16 @@ GRF_normalize_path(char *out, const char *in)
 GRFEXPORT uint32_t
 GRF_NameHash(const char *name)
 {
-	uint32_t tmp;
-	const char* pch = name;
-	tmp = 0;
-	while( *pch != 0 )
-	{
-		tmp = (tmp << 5) + tmp + toupper (*pch);
-		pch++;
-	}
-	return tmp;
+    uint32_t tmp;
+    const char *pch = name;
+    tmp = 0;
+    while (*pch != 0)
+    {
+        tmp = (tmp << 5) + tmp + toupper(*pch);
+        pch++;
+    }
+    return tmp;
 }
-
 
 /** Finds a file inside an archive.
  *
@@ -144,34 +138,36 @@ GRF_NameHash(const char *name)
 GRFEXPORT GrfFile *
 grf_find(Grf *grf, const char *fname, uint32_t *index)
 {
-	uint32_t i,j;
+    uint32_t i, j;
 
-	/* Make sure our arguments are sane */
-	if (!grf || !fname) {
-		/* GRF_SETERR(error,GE_BADARGS,grf_find); */
-		return NULL;
-	}
+    /* Make sure our arguments are sane */
+    if (!grf || !fname)
+    {
+        /* GRF_SETERR(error,GE_BADARGS,grf_find); */
+        return NULL;
+    }
 
-	/* For speed, grab the filename hash */
-	j = GRF_NameHash(fname);
-	for (i = 0; i < grf->nfiles; i++)
-		/* Check 4 bytes against each other instead of
-		 * a multi-character name
-		 */
-		if (grf->files[i].hash == j)
-			/* Just to double check that we have the right file,
-			 * compare the names
-			 */
-			if (!strncmp(fname, grf->files[i].name, GRF_NAMELEN)) {
-				/* Return the information */
-				if (index) *index = i;
-				return &(grf->files[i]);
-			}
+    /* For speed, grab the filename hash */
+    j = GRF_NameHash(fname);
+    for (i = 0; i < grf->nfiles; i++)
+        /* Check 4 bytes against each other instead of
+         * a multi-character name
+         */
+        if (grf->files[i].hash == j)
+            /* Just to double check that we have the right file,
+             * compare the names
+             */
+            if (!strncmp(fname, grf->files[i].name, GRF_NAMELEN))
+            {
+                /* Return the information */
+                if (index)
+                    *index = i;
+                return &(grf->files[i]);
+            }
 
-	/* GRF_SETERR(error, GE_SUCCESS, grf_find); */
-	return NULL;
+    /* GRF_SETERR(error, GE_SUCCESS, grf_find); */
+    return NULL;
 }
-
 
 /** Function to sort a Grf::files array
  *
@@ -184,12 +180,11 @@ grf_find(Grf *grf, const char *fname, uint32_t *index)
  * @see GRF_OffsetSort_Func()
  */
 GRFEXPORT void
-grf_sort(Grf *grf, int(*compar)(const void *, const void *))
+grf_sort(Grf *grf, int (*compar)(const void *, const void *))
 {
-	/* Run the sort */
-	qsort(grf, grf->nfiles - 1, sizeof(GrfFile), compar);
+    /* Run the sort */
+    qsort(grf, grf->nfiles - 1, sizeof(GrfFile), compar);
 }
-
 
 /** Alphabetical sorting callback function; can be used with grf_sort().
  *
@@ -201,9 +196,8 @@ grf_sort(Grf *grf, int(*compar)(const void *, const void *))
 GRFEXPORT int
 GRF_AlphaSort_Func(const GrfFile *g1, const GrfFile *g2)
 {
-	return strcoll(g1->name, g2->name);
+    return strcoll(g1->name, g2->name);
 }
-
 
 /** Offset-based sorting callback function; can be used with grf_sort().
  *
@@ -215,49 +209,49 @@ GRF_AlphaSort_Func(const GrfFile *g1, const GrfFile *g2)
 GRFEXPORT int
 GRF_OffsetSort_Func(const GrfFile *g1, const GrfFile *g2)
 {
-	/* Check their offsets */
-	if (g1->pos>g2->pos)
-		return 1;
-	else if (g1->pos==g2->pos)
-		return 0;
-	return -1;
+    /* Check their offsets */
+    if (g1->pos > g2->pos)
+        return 1;
+    else if (g1->pos == g2->pos)
+        return 0;
+    return -1;
 }
-
 
 /** Synchronize the linked list with the array
  *
  * @param grf Pointer to the Grf struct
  * @return 1 on success, 0 on fail
  */
-int
-GRF_list_from_array(Grf *grf, GrfError *error)
+int GRF_list_from_array(Grf *grf, GrfError *error)
 {
-	uint32_t i;
+    uint32_t i;
 
-	if (!grf) {
-		GRF_SETERR(error,GE_BADARGS,GRF_list_from_array);
-		return 0;
-	}
+    if (!grf)
+    {
+        GRF_SETERR(error, GE_BADARGS, GRF_list_from_array);
+        return 0;
+    }
 
-	/* Reset the linked list */
-	for (i = 0; i < grf->nfiles; i++) {
-		if (i < grf->nfiles - 1)
-			grf->files[i].next = &(grf->files[i + 1]);
-		else
-			grf->files[i].next = NULL;
+    /* Reset the linked list */
+    for (i = 0; i < grf->nfiles; i++)
+    {
+        if (i < grf->nfiles - 1)
+            grf->files[i].next = &(grf->files[i + 1]);
+        else
+            grf->files[i].next = NULL;
 
-		if (i > 0)
-			grf->files[i].prev = &(grf->files[i - 1]);
-		else
-			grf->files[i].prev = NULL;
-	}
-	grf->files[0].prev=NULL;
-	grf->files[grf->nfiles-1].next=NULL;
-	grf->first=&(grf->files[0]);
-	grf->last=&(grf->files[grf->nfiles-1]);
+        if (i > 0)
+            grf->files[i].prev = &(grf->files[i - 1]);
+        else
+            grf->files[i].prev = NULL;
+    }
+    grf->files[0].prev = NULL;
+    grf->files[grf->nfiles - 1].next = NULL;
+    grf->first = &(grf->files[0]);
+    grf->last = &(grf->files[grf->nfiles - 1]);
 
-	GRF_SETERR(error,GE_SUCCESS,GRF_list_from_array);
-	return 1;
+    GRF_SETERR(error, GE_SUCCESS, GRF_list_from_array);
+    return 1;
 }
 
 /** Synchronize the Grf::files array with the linked list.
@@ -265,45 +259,45 @@ GRF_list_from_array(Grf *grf, GrfError *error)
  * @param grf Pointer to the Grf structure
  * @return 1 on success, 0 on fail
  */
-int
-GRF_array_from_list(Grf *grf, GrfError *error)
+int GRF_array_from_list(Grf *grf, GrfError *error)
 {
-	GrfFile *newfiles, *cur;
-	uint32_t i;
+    GrfFile *newfiles, *cur;
+    uint32_t i;
 
-	/* Check our arguments */
-	if (!grf) {
-		GRF_SETERR(error, GE_BADARGS, GRF_array_from_list);
-		return 0;
-	}
+    /* Check our arguments */
+    if (!grf)
+    {
+        GRF_SETERR(error, GE_BADARGS, GRF_array_from_list);
+        return 0;
+    }
 
-	/* Allocate memory */
-	newfiles = (GrfFile *) malloc(sizeof(GrfFile) * grf->nfiles);
-	if (newfiles == NULL) {
-		GRF_SETERR(error, GE_ERRNO, malloc);
-		return 0;
-	}
+    /* Allocate memory */
+    newfiles = (GrfFile *)malloc(sizeof(GrfFile) * grf->nfiles);
+    if (newfiles == NULL)
+    {
+        GRF_SETERR(error, GE_ERRNO, malloc);
+        return 0;
+    }
 
-	/* Loop through the linked list, copying info into its position
-	 * in the new array
-	 */
-	for (i = 0, cur = grf->first; i < grf->nfiles && cur; i++, cur = cur->next)
-		memcpy(&(newfiles[i]), &(grf->files[i]), sizeof(GrfFile));
+    /* Loop through the linked list, copying info into its position
+     * in the new array
+     */
+    for (i = 0, cur = grf->first; i < grf->nfiles && cur; i++, cur = cur->next)
+        memcpy(&(newfiles[i]), &(grf->files[i]), sizeof(GrfFile));
 
-	/* Free old arguments */
-	free(grf->files);
+    /* Free old arguments */
+    free(grf->files);
 
-	/* Set new files */
-	grf->files = newfiles;
+    /* Set new files */
+    grf->files = newfiles;
 
-	GRF_SETERR(error, GE_SUCCESS, GRF_array_from_list);
-	return 1;
+    GRF_SETERR(error, GE_SUCCESS, GRF_array_from_list);
+    return 1;
 }
 
-
 /***************************
-* Error Handling Functions *
-***************************/
+ * Error Handling Functions *
+ ***************************/
 
 /** Set error information in a GrfError structure.
  *
@@ -323,17 +317,19 @@ GRF_array_from_list(Grf *grf, GrfError *error)
  *		ones spit out by zlib's gzip functions
  * @return A duplicate of the err pointer
  */
-GRFEXPORT GrfError *GRF_SetError(GrfError *err, GrfErrorType errtype, uint32_t line, const char *file, const char *func, void *extra) {
-	if (err) {
-		/* Set the error informations */
-		err->type = errtype;
-		err->line = line;
-		err->file = file;
-		err->func = func;
-		err->extra = (uintptr_t *) extra;
-	}
+GRFEXPORT GrfError *GRF_SetError(GrfError *err, GrfErrorType errtype, uint32_t line, const char *file, const char *func, void *extra)
+{
+    if (err)
+    {
+        /* Set the error informations */
+        err->type = errtype;
+        err->line = line;
+        err->file = file;
+        err->func = func;
+        err->extra = (uintptr_t *)extra;
+    }
 
-	return err;
+    return err;
 }
 
 /** Convert a GrfErrorType to a human-readable string.
@@ -345,36 +341,36 @@ GRFEXPORT GrfError *GRF_SetError(GrfError *err, GrfErrorType errtype, uint32_t l
 static const char *
 GRF_strerror_type(GrfErrorType error)
 {
-	switch (error) {
-	case GE_SUCCESS:
-		return "Success.";
-	case GE_BADARGS:
-		return "Bad arguments passed to function.";
-	case GE_INVALID:
-		return "Not a valid archive.";
-	case GE_CORRUPTED:
-		return "The archive appears to be corrupted.";
-	case GE_NSUP:
-		return "Archives of this version is not supported.";
-	case GE_NOTFOUND:
-		return "File not found inside archive.";
-	case GE_INDEX:
-		return "Invalid index.";
-	case GE_ERRNO:
-		return strerror(errno);
-	case GE_ZLIB:
-		return "Error in zlib.";
-	case GE_ZLIBFILE:
-		return "Error in zlib.";
-	case GE_BADMODE:
-		return "Bad mode: tried to modify in read-only mode.";
-	case GE_NOTIMPLEMENTED:
-		return "This feature is not implemented.";
-	default:
-		return "Unknown error.";
-	};
+    switch (error)
+    {
+    case GE_SUCCESS:
+        return "Success.";
+    case GE_BADARGS:
+        return "Bad arguments passed to function.";
+    case GE_INVALID:
+        return "Not a valid archive.";
+    case GE_CORRUPTED:
+        return "The archive appears to be corrupted.";
+    case GE_NSUP:
+        return "Archives of this version is not supported.";
+    case GE_NOTFOUND:
+        return "File not found inside archive.";
+    case GE_INDEX:
+        return "Invalid index.";
+    case GE_ERRNO:
+        return strerror(errno);
+    case GE_ZLIB:
+        return "Error in zlib.";
+    case GE_ZLIBFILE:
+        return "Error in zlib.";
+    case GE_BADMODE:
+        return "Bad mode: tried to modify in read-only mode.";
+    case GE_NOTIMPLEMENTED:
+        return "This feature is not implemented.";
+    default:
+        return "Unknown error.";
+    };
 }
-
 
 /** Convert zlib errors into a string constant
  *
@@ -384,28 +380,28 @@ GRF_strerror_type(GrfErrorType error)
 static const char *
 GRF_strerror_zlib(int error)
 {
-	switch (error) {
-	case Z_OK:
-		return "zlib success.";
-	case Z_STREAM_END:
-		return "zlib end of stream.";
-	case Z_ERRNO:
-		return strerror(errno);
-	case Z_STREAM_ERROR:
-		return "zlib stream error.";
-	case Z_DATA_ERROR:
-		return "zlib data error.";
-	case Z_MEM_ERROR:
-		return "zlib memory error.";
-	case Z_BUF_ERROR:
-		return "zlib buffer error.";
-	case Z_VERSION_ERROR:
-		return "zlib version error.";
-	default:
-		return "zlib unknown error.";
-	}
+    switch (error)
+    {
+    case Z_OK:
+        return "zlib success.";
+    case Z_STREAM_END:
+        return "zlib end of stream.";
+    case Z_ERRNO:
+        return strerror(errno);
+    case Z_STREAM_ERROR:
+        return "zlib stream error.";
+    case Z_DATA_ERROR:
+        return "zlib data error.";
+    case Z_MEM_ERROR:
+        return "zlib memory error.";
+    case Z_BUF_ERROR:
+        return "zlib buffer error.";
+    case Z_VERSION_ERROR:
+        return "zlib version error.";
+    default:
+        return "zlib unknown error.";
+    }
 }
-
 
 /** Create a human-readable message from a GrfError struct or enum
  *
@@ -418,30 +414,30 @@ GRF_strerror_zlib(int error)
 GRFEXPORT const char *
 grf_strerror(GrfError err)
 {
-	static char errbuf[0x1000];
-	const char *tmpbuf;
-	int dummy;
+    static char errbuf[0x1000];
+    const char *tmpbuf;
+    int dummy;
 
-	/* Get the error string */
-	switch (err.type) {
-	case GE_ZLIB:
-		tmpbuf = GRF_strerror_zlib((int) (ssize_t) err.extra);  /* NOTE: ptr => ssize_t /-signed-/ => int conversion */
-		break;
-	case GE_ZLIBFILE:
-		tmpbuf = gzerror((gzFile) err.extra, &dummy);
-		break;
-	default:
-		tmpbuf = GRF_strerror_type(err.type);
-	}
+    /* Get the error string */
+    switch (err.type)
+    {
+    case GE_ZLIB:
+        tmpbuf = GRF_strerror_zlib((int)(ssize_t)err.extra); /* NOTE: ptr => ssize_t /-signed-/ => int conversion */
+        break;
+    case GE_ZLIBFILE:
+        tmpbuf = gzerror((gzFile)err.extra, &dummy);
+        break;
+    default:
+        tmpbuf = GRF_strerror_type(err.type);
+    }
 
-	#ifdef GRF_DEBUG
-		snprintf(errbuf, 0x1000, "%s:%u:%s: %s", err.file, err.line, err.func, tmpbuf);
-	#else
-		snprintf(errbuf, 0x1000, "%s: %s", err.func, tmpbuf);
-	#endif
+#ifdef GRF_DEBUG
+    snprintf(errbuf, 0x1000, "%s:%u:%s: %s", err.file, err.line, err.func, tmpbuf);
+#else
+    snprintf(errbuf, 0x1000, "%s: %s", err.func, tmpbuf);
+#endif
 
-	return errbuf;
+    return errbuf;
 }
-
 
 GRFEXTERN_END

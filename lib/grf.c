@@ -42,7 +42,7 @@
 GRFEXTERN_BEGIN
 
 /* Headers */
-#define GRF_HEADER "Master of Magic"
+#define GRF_HEADER "Event Horizon\0c"
 #define GRF_HEADER_LEN (sizeof(GRF_HEADER) - 1)         /* -1 to strip     \
                                                          * null terminator \
                                                          */
@@ -625,6 +625,157 @@ static int GRF_readVer2_info(Grf *grf, GrfError *error, GrfOpenCallback callback
 
     /* Calling functions will set success...
     GRF_SETERR(error,GE_SUCCESS,GRF_readVer2_info);
+    */
+    return 0;
+}
+
+/*! \brief Private function to read GRF0x3xx headers
+ *
+ * Reads the information about files within the archive...
+ * for archive versions 0x03xx
+ *
+ * \todo Find GRF versions other than just 0x300 (do any exist?)
+ *
+ * \param grf Pointer to the Grf struct to read to
+ * \param error Pointer to a GrfErrorType struct/enum for error reporting
+ * \param callback Function to call for each read file. It should return 0 if
+ *		everything is fine, 1 if everything is fine (but further
+ *		reading should stop), or -1 if there has been an error
+ * \return 0 if everything went fine, 1 if something went wrong
+ */
+static int GRF_readVer3_info(Grf *grf, GrfError *error, GrfOpenCallback callback)
+{
+    int callbackRet;
+    uint32_t i, offset, len, len2;
+    int z;
+    uLongf zlen;
+    char *buf, *zbuf;
+
+    /* Check grf */
+    if (grf->version != 0x300)
+    {
+        GRF_SETERR(error, GE_NSUP, GRF_readVer3_info);
+        return 1;
+    }
+
+    /* Read the original and compressed sizes */
+    if ((buf = (char *)malloc(8)) == NULL)
+    {
+        GRF_SETERR(error, GE_ERRNO, malloc);
+        return 1;
+    }
+
+    fread(buf, 4, 1, grf->f);
+    if (!fread(buf, 8, 1, grf->f))
+    {
+        free(buf);
+        if (feof(grf->f))
+            GRF_SETERR(error, GE_CORRUPTED, GRF_readVer3_info);
+        else
+            GRF_SETERR(error, GE_ERRNO, fread);
+        return 1;
+    }
+
+    /* Allocate memory and read the compressed file table */
+    len = LittleEndian32((uint8_t *)buf);
+    zbuf = (char *)malloc(len);
+    if (zbuf == NULL)
+    {
+        free(buf);
+        GRF_SETERR(error, GE_ERRNO, malloc);
+        return 1;
+    }
+    if (!fread(zbuf, len, 1, grf->f))
+    {
+        free(buf);
+        free(zbuf);
+        if (feof(grf->f))
+            GRF_SETERR(error, GE_CORRUPTED, GRF_readVer3_info);
+        else
+            GRF_SETERR(error, GE_ERRNO, fread);
+        return 1;
+    }
+
+    len2 = LittleEndian32((uint8_t *)buf + 4);
+    if (len2 == 0)
+    {
+        free(zbuf);
+        return 0;
+    }
+
+    /* Allocate memory and uncompress the compressed file table */
+    buf = (char *)realloc(buf, len2);
+    if (buf == NULL)
+    {
+        free(zbuf);
+        GRF_SETERR(error, GE_ERRNO, realloc);
+        return 1;
+    }
+
+    zlen = len2;
+    z = uncompress((Bytef *)buf, &zlen, (const Bytef *)zbuf, (uLong)len);
+    if (z != Z_OK)
+    {
+        free(buf);
+        free(zbuf);
+        GRF_SETERR_2(error, GE_ZLIB, uncompress, (ssize_t)z); /* NOTE: int => ssize_t /-signed-/ => uintptr* conversion */
+        return 1;
+    }
+
+    /* Free the compressed file table */
+    free(zbuf);
+
+    /* Read information about each file */
+    for (i = offset = 0; i < grf->nfiles; i++)
+    {
+        /* Grab the filename length */
+        len = (uint32_t)strlen(buf + offset) + 1; /* NOTE: size_t => uint32_t conversion */
+
+        /* Make sure its not too large */
+        if (len >= GRF_NAMELEN)
+        {
+            free(buf);
+            GRF_SETERR(error, GE_CORRUPTED, GRF_readVer3_info);
+            return 1;
+        }
+
+        /* Grab filename */
+        memcpy(grf->files[i].name, buf + offset, len);
+        offset += len;
+
+        /* Grab the rest of the information */
+        grf->files[i].compressed_len = LittleEndian32((uint8_t *)(buf + offset));
+        grf->files[i].compressed_len_aligned = LittleEndian32((uint8_t *)(buf + offset + 4));
+        grf->files[i].real_len = LittleEndian32((uint8_t *)(buf + offset + 8));
+        grf->files[i].flags = *(uint8_t *)(buf + offset + 0xC);
+        grf->files[i].pos = LittleEndian32((uint8_t *)buf + offset + 0xD) + GRF_HEADER_FULL_LEN;
+        grf->files[i].hash = GRF_NameHash(grf->files[i].name);
+
+        /* Advance to the next file */
+        offset += 0x11;
+
+        /* Run the callback, if we have one */
+        if (callback)
+        {
+            if ((callbackRet = callback(&(grf->files[i]), error)) < 0)
+            {
+                /* Callback function had an error, so we
+                 * have an error
+                 */
+                return 1;
+            }
+            else if (callbackRet > 0)
+            {
+                /* Callback function found the file it needed,
+                 * just exit now
+                 */
+                return 0;
+            }
+        }
+    }
+
+    /* Calling functions will set success...
+    GRF_SETERR(error,GE_SUCCESS,GRF_readVer3_info);
     */
     return 0;
 }
@@ -1726,6 +1877,9 @@ grf_callback_open(const char *fname, const char *mode, GrfError *error, GrfOpenC
      */
     switch (grf->version & 0xFF00)
     {
+    case 0x0300:
+        i = GRF_readVer3_info(grf, error, callback);
+        break;
     case 0x0200:
         i = GRF_readVer2_info(grf, error, callback);
         break;
