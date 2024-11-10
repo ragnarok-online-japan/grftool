@@ -665,14 +665,36 @@ static int GRF_readVer3_info(Grf *grf, GrfError *error, GrfOpenCallback callback
         return 1;
     }
 
-    fread(buf, 4, 1, grf->f);
-    if (!fread(buf, 8, 1, grf->f))
+    /* 4バイト分読み込み */
+    size_t bytesRead = fread(buf, 1, 4, grf->f);
+    if (bytesRead != 4)
     {
         free(buf);
         if (feof(grf->f))
+        {
             GRF_SETERR(error, GE_CORRUPTED, GRF_readVer3_info);
+        }
         else
+        {
             GRF_SETERR(error, GE_ERRNO, fread);
+        }
+        fprintf(stderr, "Error: fread expected 4 bytes, but read %zu bytes\n", bytesRead);
+        return 1;
+    }
+    /* 続けてさらに 8バイト読み込み */
+    bytesRead = fread(buf, 1, 8, grf->f);
+    if (bytesRead != 8)
+    {
+        free(buf);
+        if (feof(grf->f))
+        {
+            GRF_SETERR(error, GE_CORRUPTED, GRF_readVer3_info);
+        }
+        else
+        {
+            GRF_SETERR(error, GE_ERRNO, fread);
+        }
+        fprintf(stderr, "Error: fread expected 8 bytes, but read %zu bytes\n", bytesRead);
         return 1;
     }
 
@@ -752,7 +774,7 @@ static int GRF_readVer3_info(Grf *grf, GrfError *error, GrfOpenCallback callback
         grf->files[i].hash = GRF_NameHash(grf->files[i].name);
 
         /* Advance to the next file */
-        offset += 0x11;
+        offset += 0x15;
 
         /* Run the callback, if we have one */
         if (callback)
